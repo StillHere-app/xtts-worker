@@ -1,6 +1,7 @@
 # ============================================================
 # Base image with Python + CUDA support (required for XTTS GPU)
 # ============================================================
+ENV COQUI_TOS_AGREED=1
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
 # ------------------------------------------------------------
