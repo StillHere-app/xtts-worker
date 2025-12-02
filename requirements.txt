@@ -1,0 +1,8 @@
+runpod
+google-cloud-storage
+torch
+torchaudio
+ffmpeg-python
+TTS
+numpy
+requests
