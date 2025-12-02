@@ -1,16 +1,38 @@
-FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
+# ============================================================
+# Base image with Python + CUDA support (required for XTTS GPU)
+# ============================================================
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
+# ------------------------------------------------------------
+# System dependencies
+# ------------------------------------------------------------
 RUN apt-get update && apt-get install -y \
-    python3 python3-pip ffmpeg git && \
-    rm -rf /var/lib/apt/lists/*
+    python3 python3-pip git ffmpeg \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /worker
+# ------------------------------------------------------------
+# Set work directory
+# ------------------------------------------------------------
+WORKDIR /app
 
-COPY requirements.txt .
-RUN pip3 install -r requirements.txt --no-cache-dir
+# ------------------------------------------------------------
+# Copy worker code
+# ------------------------------------------------------------
+COPY . /app
 
-COPY worker.py .
+# ------------------------------------------------------------
+# Python dependencies
+# ------------------------------------------------------------
+RUN pip3 install --upgrade pip
+RUN pip3 install \
+    torch torchaudio --extra-index-url https://download.pytorch.org/whl/cu121 \
+    runpod \
+    google-cloud-storage \
+    requests \
+    TTS \
+    ffmpeg-python
 
-ENV PYTHONUNBUFFERED=1
-
+# ------------------------------------------------------------
+# RunPod Serverless start command
+# ------------------------------------------------------------
 CMD ["python3", "worker.py"]
