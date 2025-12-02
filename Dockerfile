@@ -1,3 +1,4 @@
+ARG CACHEBUSTER=1
 # ============================================================
 # Base image with Python + CUDA support (required for XTTS GPU)
 # ============================================================
