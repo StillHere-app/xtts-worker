@@ -36,9 +36,16 @@ RUN pip install --upgrade pip setuptools wheel
 # Install PyTorch FIRST (CUDA 12.1 build)
 RUN pip install torch torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
 
-# Install **latest XTTS package**
+# ------------------------------------------------------------
+# FIX: Install compatible HuggingFace Transformers version
+# XTTS requires BeamSearchScorer which was removed in newer versions.
+# ------------------------------------------------------------
+RUN pip install transformers==4.31.0
+
+# ------------------------------------------------------------
+# Install XTTS (must come AFTER transformers)
+# ------------------------------------------------------------
 RUN pip install TTS==0.22.0
-# (0.22.0 is confirmed to contain XttsConfig)
 
 # Install your worker requirements
 RUN pip install -r requirements.txt || true
