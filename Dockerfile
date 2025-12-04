@@ -5,7 +5,6 @@
 
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
-# Non-interactive mode for apt installs
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV COQUI_TOS_AGREED=1
@@ -19,13 +18,11 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # ------------------------------------------------------------
-# Set working directory
+# Working directory
 # ------------------------------------------------------------
 WORKDIR /app
 
-# ------------------------------------------------------------
-# Copy worker code
-# ------------------------------------------------------------
+# Copy code
 COPY . /app
 
 # ------------------------------------------------------------
@@ -33,32 +30,28 @@ COPY . /app
 # ------------------------------------------------------------
 RUN pip install --upgrade pip setuptools wheel
 
-# Install PyTorch FIRST (CUDA 12.1 build)
+# Install PyTorch FIRST
 RUN pip install torch torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
 
-# ------------------------------------------------------------
-# Install XTTS (installs dependencies including transformers,
-# but we will override transformers afterward)
-# ------------------------------------------------------------
+# Install XTTS (this may install a too-new transformers/tokenizers)
 RUN pip install TTS==0.22.0
 
-# Install your worker requirements
+# Install worker requirements
 RUN pip install -r requirements.txt || true
 
-# Extra utilities
+# Install utilities
 RUN pip install runpod google-cloud-storage requests ffmpeg-python
 
 # ------------------------------------------------------------
-# IMPORTANT: FORCE INSTALL the correct transformers version LAST
-# XTTS requires BeamSearchScorer, removed in newer versions.
-# --force-reinstall and --no-deps prevent override by TTS deps.
+# FIX 1: Force the correct transformers version
 # ------------------------------------------------------------
 RUN pip install transformers==4.31.0 --force-reinstall --no-deps
 
-# Expose HTTP port
+# ------------------------------------------------------------
+# FIX 2: Force compatible tokenizers version
+# ------------------------------------------------------------
+RUN pip install tokenizers==0.13.3 --force-reinstall --no-deps
+
 EXPOSE 8000
 
-# ------------------------------------------------------------
-# Run worker
-# ------------------------------------------------------------
 CMD ["python3", "/app/worker.py"]
