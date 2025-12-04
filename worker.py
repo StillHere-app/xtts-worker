@@ -13,10 +13,13 @@ from runpod import serverless
 # ============================================================
 import torch
 from torch.serialization import add_safe_globals
-from TTS.tts.configs.xtts_config import XttsConfig
 
-# Allow XTTS to unpickle its configuration safely BEFORE TTS loads anything
-add_safe_globals([XttsConfig])
+from TTS.tts.configs.xtts_config import XttsConfig
+from TTS.tts.models.xtts import XttsAudioConfig   # <-- NEW FIX
+
+# Allow XTTS to unpickle safely BEFORE TTS loads anything
+add_safe_globals([XttsConfig, XttsAudioConfig])   # <-- UPDATED FIX
+
 
 import torchaudio
 import ffmpeg
