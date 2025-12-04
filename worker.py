@@ -7,10 +7,21 @@ import requests
 
 from google.cloud import storage
 from runpod import serverless
+
+# ============================================================
+#  PYTORCH 2.6 — XTTS UNPICKLING FIX
+# ============================================================
 import torch
+from torch.serialization import add_safe_globals
+from TTS.tts.configs.xtts_config import XttsConfig
+
+# Allow XTTS to unpickle its configuration safely BEFORE TTS loads anything
+add_safe_globals([XttsConfig])
+
 import torchaudio
 import ffmpeg
 from TTS.api import TTS
+
 
 # ============================================================
 #  CONFIG
@@ -19,6 +30,7 @@ GCS_BUCKET = os.getenv("GCS_BUCKET")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
 RETURN_AUDIO_BASE64 = True   # Optional: used for previews
+
 
 # ============================================================
 #  LOAD XTTS MODEL
