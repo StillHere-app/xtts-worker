@@ -1,19 +1,14 @@
 # ============================================================
 # XTTS Worker Dockerfile for RunPod Serverless
-# CPU/GPU Compatible
+# GPU-enabled with CUDA 12.1
 # ============================================================
 
-# Cache-buster to force rebuilds when needed
-ARG CACHEBUSTER=1
-
-# Base image with CUDA support (works for CPU as well)
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
-# Accept the Coqui XTTS license automatically
-ENV COQUI_TOS_AGREED=1
-
-# Disable Python buffering
+# Non-interactive mode for apt installs
+ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
+ENV COQUI_TOS_AGREED=1
 
 # ------------------------------------------------------------
 # System dependencies
@@ -29,27 +24,32 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # ------------------------------------------------------------
-# Copy code into container
+# Copy worker code
 # ------------------------------------------------------------
 COPY . /app
 
 # ------------------------------------------------------------
-# Python Dependencies
+# Python dependencies
 # ------------------------------------------------------------
 RUN pip install --upgrade pip setuptools wheel
 
-# Install Coqui TTS (latest stable)
-RUN pip install TTS==0.20.2
+# Install PyTorch FIRST (CUDA 12.1 build)
+RUN pip install torch torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
 
-# Install additional worker requirements
+# Install **latest XTTS package**
+RUN pip install TTS==0.22.0
+# (0.22.0 is confirmed to contain XttsConfig)
+
+# Install your worker requirements
 RUN pip install -r requirements.txt || true
 
-# ------------------------------------------------------------
-# Expose HTTP port for RunPod serverless
-# ------------------------------------------------------------
+# Extra utilities
+RUN pip install runpod google-cloud-storage requests ffmpeg-python
+
+# Expose HTTP port
 EXPOSE 8000
 
 # ------------------------------------------------------------
-# Execution command
+# Run worker
 # ------------------------------------------------------------
 CMD ["python3", "/app/worker.py"]
