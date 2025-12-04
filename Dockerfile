@@ -37,13 +37,8 @@ RUN pip install --upgrade pip setuptools wheel
 RUN pip install torch torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
 
 # ------------------------------------------------------------
-# FIX: Install compatible HuggingFace Transformers version
-# XTTS requires BeamSearchScorer which was removed in newer versions.
-# ------------------------------------------------------------
-RUN pip install transformers==4.31.0
-
-# ------------------------------------------------------------
-# Install XTTS (must come AFTER transformers)
+# Install XTTS (installs dependencies including transformers,
+# but we will override transformers afterward)
 # ------------------------------------------------------------
 RUN pip install TTS==0.22.0
 
@@ -52,6 +47,13 @@ RUN pip install -r requirements.txt || true
 
 # Extra utilities
 RUN pip install runpod google-cloud-storage requests ffmpeg-python
+
+# ------------------------------------------------------------
+# IMPORTANT: FORCE INSTALL the correct transformers version LAST
+# XTTS requires BeamSearchScorer, removed in newer versions.
+# --force-reinstall and --no-deps prevent override by TTS deps.
+# ------------------------------------------------------------
+RUN pip install transformers==4.31.0 --force-reinstall --no-deps
 
 # Expose HTTP port
 EXPOSE 8000
