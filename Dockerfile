@@ -1,4 +1,4 @@
-FROM runpod/pytorch:3.0.0-py3.10-cuda12.1.1
+FROM runpod/serverless:latest
 
 WORKDIR /app
 
@@ -11,19 +11,17 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # -------------------------------------------------------------
-# Install Python packages
+# Python dependencies
 # -------------------------------------------------------------
 COPY requirements.txt /app/requirements.txt
-
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
 # -------------------------------------------------------------
-# Copy worker
+# Worker code
 # -------------------------------------------------------------
 COPY worker.py /app/worker.py
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 CMD ["/app/entrypoint.sh"]
-
