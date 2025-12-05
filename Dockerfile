@@ -1,21 +1,48 @@
-# Use a supported RunPod base image
-FROM runpod/serverless:cpu
+# ============================================================
+#  RUNPOD GPU BASE IMAGE (REQUIRED)
+# ============================================================
+FROM runpod/base:0.4.0
 
-# Set working directory
-WORKDIR /app
+# Prevent any interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y ffmpeg git && rm -rf /var/lib/apt/lists/*
+# ============================================================
+#  SYSTEM DEPENDENCIES
+# ============================================================
+RUN apt-get update && apt-get install -y \
+    git \
+    wget \
+    curl \
+    ffmpeg \
+    libsndfile1 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy project files
-COPY requirements.txt .
-COPY worker.py .
+# ============================================================
+#  PYTORCH (CUDA 12.1) — REQUIRED FOR GPU
+# ============================================================
+RUN pip install --no-cache-dir torch==2.1.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
-# Install Python dependencies
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# ============================================================
+#  TTS & MODEL DEPENDENCIES
+# ============================================================
+RUN pip install --no-cache-dir TTS==0.22.0
 
-# Expose the port RunPod uses internally
-EXPOSE 8080
+# Your worker depends on ffmpeg-python
+RUN pip install --no-cache-dir ffmpeg-python requests google-cloud-storage
 
-# Start the worker
-CMD ["python3", "worker.py"]
+# ============================================================
+#  **PIN THESE — REQUIRED FOR XTTS STABILITY**
+# ============================================================
+RUN pip install --no-cache-dir transformers==4.31.0 tokenizers==0.13.3
+
+# ============================================================
+#  COPY WORKER FILES
+# ============================================================
+WORKDIR /workspace
+COPY worker.py /workspace/worker.py
+
+# ============================================================
+#  DEFAULT COMMAND
+# ============================================================
+CMD ["python3", "-u", "worker.py"]
