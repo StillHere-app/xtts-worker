@@ -1,13 +1,14 @@
 # ============================================================
-#  RUNPOD GPU BASE IMAGE (REQUIRED)
+#  RUNPOD SERVERLESS BASE IMAGE (GPU-COMPATIBLE)
+#  This is the ONLY image RunPod allows for Serverless v2.
 # ============================================================
-FROM runpod/base:0.4.0
+FROM runpod/serverless:latest
 
-# Prevent any interactive prompts
+# Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
 # ============================================================
-#  SYSTEM DEPENDENCIES
+#  SYSTEM PACKAGES
 # ============================================================
 RUN apt-get update && apt-get install -y \
     git \
@@ -19,30 +20,28 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================================
-#  PYTORCH (CUDA 12.1) — REQUIRED FOR GPU
+#  PYTORCH + CUDA 12.1
 # ============================================================
 RUN pip install --no-cache-dir torch==2.1.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 
 # ============================================================
-#  TTS & MODEL DEPENDENCIES
+#  XTTS + DEPENDENCIES
 # ============================================================
 RUN pip install --no-cache-dir TTS==0.22.0
-
-# Your worker depends on ffmpeg-python
 RUN pip install --no-cache-dir ffmpeg-python requests google-cloud-storage
 
 # ============================================================
-#  **PIN THESE — REQUIRED FOR XTTS STABILITY**
+#  PINNED VERSIONS REQUIRED FOR XTTS STABILITY
 # ============================================================
 RUN pip install --no-cache-dir transformers==4.31.0 tokenizers==0.13.3
 
 # ============================================================
-#  COPY WORKER FILES
+#  COPY WORKER CODE
 # ============================================================
 WORKDIR /workspace
 COPY worker.py /workspace/worker.py
 
 # ============================================================
-#  DEFAULT COMMAND
+#  START WORKER
 # ============================================================
 CMD ["python3", "-u", "worker.py"]
