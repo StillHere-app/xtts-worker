@@ -1,4 +1,4 @@
-FROM runpod/serverless:latest
+FROM runpod/worker:latest
 
 WORKDIR /app
 
