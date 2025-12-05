@@ -9,18 +9,16 @@ from google.cloud import storage
 from runpod import serverless
 
 # ============================================================
-#  PYTORCH 2.6 — FULL XTTS UNPICKLE SAFE-GLOBAL ALLOW-LIST
+#  PYTORCH 2.6 — COMPLETE XTTS UNPICKLE SAFE-GLOBAL ALLOW-LIST
 # ============================================================
 import torch
 from torch.serialization import add_safe_globals
 
-# ---- XTTS CONFIG CLASSES ----
+# ---- XTTS CONFIG CLASSES (ONLY ONES THAT EXIST IN THIS VERSION) ----
 from TTS.tts.configs.xtts_config import (
     XttsConfig,
     XttsAudioConfig,
-    XttsArgs,
-    XttsSpeakerEncoderConfig,
-    XttsTrainingConfig
+    XttsArgs
 )
 
 # ---- SHARED CONFIG CLASSES ----
@@ -38,7 +36,7 @@ from TTS.tts.models.xtts import (
     XttsSpeakerEncoder
 )
 
-# ---- XTTS LAYER CLASSES ----
+# ---- XTTS LAYER CLASSES (SOME MAY NOT EXIST DEPENDING ON VERSION) ----
 try:
     from TTS.tts.layers.xtts.transformer import XttsTransformer
     from TTS.tts.layers.xtts.audio_encoder import XttsAudioEncoder
@@ -46,20 +44,17 @@ try:
     from TTS.tts.layers.xtts.speaker_encoder import XttsSpeakerEncoderLayer
     from TTS.tts.layers.xtts.latent_encoder import XttsLatentEncoder
 except Exception:
-    # Some versions may not expose all modules
     XttsTransformer = None
     XttsAudioEncoder = None
     XttsDecoder = None
     XttsSpeakerEncoderLayer = None
     XttsLatentEncoder = None
 
-# ---- REGISTER ALL POSSIBLE GLOBALS ----
+# ---- REGISTER ALL VERIFIED XTTS CLASSES ----
 add_safe_globals([
     XttsConfig,
     XttsAudioConfig,
     XttsArgs,
-    XttsSpeakerEncoderConfig,
-    XttsTrainingConfig,
 
     BaseDatasetConfig,
     CharactersConfig,
@@ -91,7 +86,7 @@ from TTS.api import TTS
 # ============================================================
 GCS_BUCKET = os.getenv("GCS_BUCKET")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-RETURN_AUDIO_BASE64 = True
+RETURN_AUDIO_BASE64 = True   # For preview responses
 
 
 # ============================================================
@@ -99,7 +94,7 @@ RETURN_AUDIO_BASE64 = True
 # ============================================================
 print("🔊 Loading XTTS v2 model...")
 xtts_model = TTS("tts_models/multilingual/multi-dataset/xtts_v2")
-print("✓ XTTS model ready")
+print("✓ XTTS model loaded successfully")
 
 
 # ============================================================
@@ -166,7 +161,7 @@ def encode_b64(path):
 
 
 # ============================================================
-#  RUNPOD HANDLER
+#  RUNPOD SERVERLESS HANDLER
 # ============================================================
 def handler(event):
     try:
@@ -183,7 +178,7 @@ def handler(event):
                 "embedding": embedding
             }
 
-        # 2️⃣ Generate TTS audio
+        # 2️⃣ Synthesize audio
         if cmd == "tts":
             text = event["input"]["text"]
             embedding = event["input"]["embedding"]
@@ -203,7 +198,7 @@ def handler(event):
         return {"status": "error", "message": f"Unknown command: {cmd}"}
 
     except Exception as e:
-        print("❌ EXCEPTION:", e)
+        print("❌ Exception occurred:", e)
         traceback.print_exc()
         return {
             "status": "error",
@@ -213,6 +208,6 @@ def handler(event):
 
 
 # ============================================================
-#  START SERVERLESS HANDLER
+#  START WORKER
 # ============================================================
 serverless.start({"handler": handler})
