@@ -9,22 +9,78 @@ from google.cloud import storage
 from runpod import serverless
 
 # ============================================================
-#  PYTORCH 2.6 — XTTS UNPICKLING FIX
+#  PYTORCH 2.6 — FULL XTTS UNPICKLE SAFE-GLOBAL ALLOW-LIST
 # ============================================================
 import torch
 from torch.serialization import add_safe_globals
 
-from TTS.tts.configs.xtts_config import XttsConfig
-from TTS.tts.models.xtts import XttsAudioConfig
-from TTS.config.shared_configs import BaseDatasetConfig
+# ---- XTTS CONFIG CLASSES ----
+from TTS.tts.configs.xtts_config import (
+    XttsConfig,
+    XttsAudioConfig,
+    XttsArgs,
+    XttsSpeakerEncoderConfig,
+    XttsTrainingConfig
+)
 
-# Allow XTTS to unpickle safely BEFORE TTS loads anything
+# ---- SHARED CONFIG CLASSES ----
+from TTS.config.shared_configs import (
+    BaseDatasetConfig,
+    CharactersConfig,
+    AudioConfig,
+    BaseTTSConfig
+)
+
+# ---- XTTS MODEL CLASSES ----
+from TTS.tts.models.xtts import (
+    Xtts,
+    XttsArgs,
+    XttsSpeakerEncoder
+)
+
+# ---- XTTS LAYER CLASSES ----
+try:
+    from TTS.tts.layers.xtts.transformer import XttsTransformer
+    from TTS.tts.layers.xtts.audio_encoder import XttsAudioEncoder
+    from TTS.tts.layers.xtts.decoder import XttsDecoder
+    from TTS.tts.layers.xtts.speaker_encoder import XttsSpeakerEncoderLayer
+    from TTS.tts.layers.xtts.latent_encoder import XttsLatentEncoder
+except Exception:
+    # Some versions may not expose all modules
+    XttsTransformer = None
+    XttsAudioEncoder = None
+    XttsDecoder = None
+    XttsSpeakerEncoderLayer = None
+    XttsLatentEncoder = None
+
+# ---- REGISTER ALL POSSIBLE GLOBALS ----
 add_safe_globals([
     XttsConfig,
     XttsAudioConfig,
-    BaseDatasetConfig
+    XttsArgs,
+    XttsSpeakerEncoderConfig,
+    XttsTrainingConfig,
+
+    BaseDatasetConfig,
+    CharactersConfig,
+    AudioConfig,
+    BaseTTSConfig,
+
+    Xtts,
+    XttsArgs,
+    XttsSpeakerEncoder,
+
+    XttsTransformer,
+    XttsAudioEncoder,
+    XttsDecoder,
+    XttsSpeakerEncoderLayer,
+    XttsLatentEncoder
 ])
 
+
+# ============================================================
+#  OTHER IMPORTS
+# ============================================================
 import torchaudio
 import ffmpeg
 from TTS.api import TTS
@@ -35,8 +91,7 @@ from TTS.api import TTS
 # ============================================================
 GCS_BUCKET = os.getenv("GCS_BUCKET")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-
-RETURN_AUDIO_BASE64 = True   # Optional: used for previews
+RETURN_AUDIO_BASE64 = True
 
 
 # ============================================================
@@ -64,7 +119,6 @@ def upload_to_gcs(local_path, gcs_path):
 #  HELPERS
 # ============================================================
 def download_file(url):
-    """Download file to temp directory, return local path."""
     r = requests.get(url)
     r.raise_for_status()
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
@@ -74,7 +128,6 @@ def download_file(url):
 
 
 def extract_embedding(sample_paths):
-    """Extract XTTS speaker embedding."""
     print(f"📌 Extracting embedding from {len(sample_paths)} samples...")
     spk_emb, gpt_latent = xtts_model.get_conditioning_latents(sample_paths)
 
@@ -85,7 +138,6 @@ def extract_embedding(sample_paths):
 
 
 def xtts_generate_audio(text, embedding):
-    """Generate XTTS audio using previously extracted embedding."""
     speaker_emb = torch.tensor(embedding["speaker_embedding"])
     gpt_latent = torch.tensor(embedding["gpt_latent"])
 
@@ -99,7 +151,6 @@ def xtts_generate_audio(text, embedding):
 
 
 def save_mp3(audio_array):
-    """Save XTTS numpy audio → wav → mp3 via FFmpeg."""
     wav_path = tempfile.NamedTemporaryFile(delete=False, suffix=".wav").name
     mp3_path = wav_path.replace(".wav", ".mp3")
 
@@ -121,13 +172,10 @@ def handler(event):
     try:
         cmd = event["input"].get("command")
 
-        # ----------------------------------------------------
-        # 1️⃣ EXTRACT EMBEDDING
-        # ----------------------------------------------------
+        # 1️⃣ Extract speaker embedding
         if cmd == "extract-embedding":
             sample_urls = event["input"]["sampleUrls"]
             sample_paths = [download_file(u) for u in sample_urls]
-
             embedding = extract_embedding(sample_paths)
 
             return {
@@ -135,9 +183,7 @@ def handler(event):
                 "embedding": embedding
             }
 
-        # ----------------------------------------------------
-        # 2️⃣ TTS GENERATION
-        # ----------------------------------------------------
+        # 2️⃣ Generate TTS audio
         if cmd == "tts":
             text = event["input"]["text"]
             embedding = event["input"]["embedding"]
@@ -154,10 +200,7 @@ def handler(event):
                 "audioBase64": encode_b64(mp3_path) if RETURN_AUDIO_BASE64 else None
             }
 
-        return {
-            "status": "error",
-            "message": f"Unknown command: {cmd}"
-        }
+        return {"status": "error", "message": f"Unknown command: {cmd}"}
 
     except Exception as e:
         print("❌ EXCEPTION:", e)
