@@ -1,4 +1,4 @@
-FROM runpod/base:0.4.0-cuda12.1.1
+FROM runpod/pytorch:3.0.0-py3.10-cuda12.1.1
 
 WORKDIR /app
 
@@ -25,7 +25,4 @@ COPY worker.py /app/worker.py
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# -------------------------------------------------------------
-# Start worker
-# -------------------------------------------------------------
 CMD ["/app/entrypoint.sh"]
