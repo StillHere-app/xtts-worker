@@ -15,11 +15,15 @@ import torch
 from torch.serialization import add_safe_globals
 
 from TTS.tts.configs.xtts_config import XttsConfig
-from TTS.tts.models.xtts import XttsAudioConfig   # <-- NEW FIX
+from TTS.tts.models.xtts import XttsAudioConfig
+from TTS.config.shared_configs import BaseDatasetConfig
 
 # Allow XTTS to unpickle safely BEFORE TTS loads anything
-add_safe_globals([XttsConfig, XttsAudioConfig])   # <-- UPDATED FIX
-
+add_safe_globals([
+    XttsConfig,
+    XttsAudioConfig,
+    BaseDatasetConfig
+])
 
 import torchaudio
 import ffmpeg
