@@ -1,4 +1,4 @@
-# XTTS Worker for StillHere
+# XTTS Worker for StillHere 2
 
 This is a RunPod Serverless v2 worker that performs:
 
