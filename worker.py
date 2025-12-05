@@ -9,7 +9,7 @@ from google.cloud import storage
 from runpod import serverless
 
 # ============================================================
-#  PYTORCH 2.6+ SAFE GLOBALS FOR XTTS (DYNAMIC, NO HARD-CODED NAMES)
+#  PYTORCH 2.6+ SAFE GLOBALS FOR XTTS (DYNAMIC, SNO HARD-CODED NAMES)
 # ============================================================
 import torch
 
