@@ -1,10 +1,10 @@
-# Use a known-good RunPod Python base image
-FROM runpod/onnxruntime:cpu-latest
+# Use a supported RunPod base image
+FROM runpod/serverless:cpu
 
 # Set working directory
 WORKDIR /app
 
-# Install system deps
+# Install system dependencies
 RUN apt-get update && apt-get install -y ffmpeg git && rm -rf /var/lib/apt/lists/*
 
 # Copy project files
@@ -14,7 +14,7 @@ COPY worker.py .
 # Install Python dependencies
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Expose port (RunPod serverless uses)
+# Expose the port RunPod uses internally
 EXPOSE 8080
 
 # Start the worker
