@@ -9,21 +9,19 @@ from google.cloud import storage
 from runpod import serverless
 
 # ============================================================
-#  XTTS FIX — ALLOW ALL TTS.* CLASSES FOR UNPICKLING
+#  UNIVERSAL XTTS UNPICKLE FIX (Pytorch 2.6+)
 # ============================================================
 import torch
 import torchaudio
 import ffmpeg
 
-# Wildcard allowlist for all Coqui XTTS classes  
-# This permanently stops the endless "Unsupported global" errors.
+# Allow ANY class inside TTS.* during unpickling.
 if hasattr(torch.serialization, "safe_globals_allow_regex"):
     torch.serialization.safe_globals_allow_regex(r"^TTS\..*")
 else:
     from torch.serialization import add_safe_globals
     import TTS
     add_safe_globals([TTS])
-
 
 from TTS.api import TTS
 
@@ -32,7 +30,6 @@ from TTS.api import TTS
 #  CONFIG
 # ============================================================
 GCS_BUCKET = os.getenv("GCS_BUCKET")
-
 RETURN_AUDIO_BASE64 = True
 
 
