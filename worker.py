@@ -1,42 +1,37 @@
-import os
-import tempfile
-import traceback
-import base64
-import json
-import threading
-
-import requests
-from google.cloud import storage
-from runpod import serverless
-
 # ============================================================
-#  HEALTH CHECK SERVER (REQUIRED FOR RUNPOD SERVERLESS V2)
+#  DEBUG WRAPPER TO CATCH IMPORT FAILURES AT STARTUP
 # ============================================================
-from flask import Flask
+try:
+    import os
+    import tempfile
+    import traceback
+    import base64
+    import json
 
-app = Flask(__name__)
+    import requests
+    from google.cloud import storage
+    from runpod import serverless
 
-@app.get("/health")
-def health():
-    return "ok", 200
+    import torch
+    import torchaudio
+    import ffmpeg
+    from TTS.api import TTS
 
-def start_health_server():
-    # Runs concurrently, keeps RunPod happy
-    app.run(host="0.0.0.0", port=8080)
-
-threading.Thread(target=start_health_server, daemon=True).start()
+except Exception as e:
+    print("🔥 IMPORT FAILURE DURING STARTUP:", e)
+    traceback.print_exc()
+    raise
 
 
 # ============================================================
-#  PYTORCH SAFE GLOBALS (UNCHANGED)
+#  PYTORCH SAFE GLOBALS FOR XTTS
 # ============================================================
-import torch
-
 try:
     from torch.serialization import add_safe_globals
 except ImportError:
     def add_safe_globals(objs):
         return
+
 
 def register_tts_safe_globals():
     from importlib import import_module
@@ -51,6 +46,7 @@ def register_tts_safe_globals():
     ]
 
     all_classes = []
+
     for mod_name in module_names:
         try:
             mod = import_module(mod_name)
@@ -72,11 +68,8 @@ def register_tts_safe_globals():
         add_safe_globals(all_classes)
         print(f"🔐 Registered {len(all_classes)} TTS classes as safe globals.")
 
-register_tts_safe_globals()
 
-import torchaudio
-import ffmpeg
-from TTS.api import TTS
+register_tts_safe_globals()
 
 
 # ============================================================
@@ -86,16 +79,17 @@ GCS_BUCKET = os.getenv("GCS_BUCKET")
 RETURN_AUDIO_BASE64 = True
 
 if not GCS_BUCKET:
-    print("⚠️ GCS_BUCKET is not set — uploads will fail.")
+    print("⚠️ GCS_BUCKET environment variable not set.")
 
 gcs_client = storage.Client() if GCS_BUCKET else None
 bucket = gcs_client.bucket(GCS_BUCKET) if gcs_client else None
 
 
 # ============================================================
-#  LAZY LOAD XTTS MODEL (KEY FIX)
+#  LAZY XTTS MODEL LOADING
 # ============================================================
 xtts_model = None
+
 
 def get_xtts_model():
     global xtts_model
@@ -107,11 +101,11 @@ def get_xtts_model():
 
 
 # ============================================================
-#  HELPERS (UNCHANGED)
+#  HELPERS
 # ============================================================
 def upload_to_gcs(local_path: str, gcs_path: str) -> str:
     if not bucket:
-        raise RuntimeError("GCS bucket not configured.")
+        raise RuntimeError("GCS bucket is not configured (missing GCS_BUCKET).")
 
     blob = bucket.blob(gcs_path)
     blob.upload_from_filename(local_path)
@@ -120,6 +114,7 @@ def upload_to_gcs(local_path: str, gcs_path: str) -> str:
 
 
 def download_file(url: str) -> str:
+    """Download a file to a temp wav and return its path."""
     r = requests.get(url)
     r.raise_for_status()
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
@@ -129,7 +124,7 @@ def download_file(url: str) -> str:
 
 
 def extract_embedding(sample_paths):
-    print(f"📌 Extracting embedding from {len(sample_paths)} samples…")
+    print(f"📌 Extracting embedding from {len(sample_paths)} sample(s)…")
     model = get_xtts_model()
     spk_emb, gpt_latent = model.get_conditioning_latents(sample_paths)
 
@@ -145,12 +140,13 @@ def xtts_generate_audio(text, embedding, language="en"):
     speaker = torch.tensor(embedding["speaker_embedding"])
     latent = torch.tensor(embedding["gpt_latent"])
 
-    print(f"🎤 Running XTTS inference… (lang={language})")
-    return model.tts_with_latents(
+    print("🎤 Running XTTS inference…")
+    audio = model.tts_with_latents(
         text=text,
         speaker_latents=(speaker, latent),
         language=language,
     )
+    return audio
 
 
 def save_mp3(audio_array):
@@ -161,6 +157,7 @@ def save_mp3(audio_array):
     torchaudio.save(wav_path, waveform, 24000)
 
     ffmpeg.input(wav_path).output(mp3_path).run(overwrite_output=True)
+
     return mp3_path
 
 
@@ -170,35 +167,29 @@ def encode_b64(path: str) -> str:
 
 
 # ============================================================
-#  RUNPOD HANDLER (UNCHANGED)
+#  RUNPOD HANDLER
 # ============================================================
 def handler(event):
     try:
         _input = event.get("input") or {}
         cmd = _input.get("command")
 
-        # ----------------------------------------------------
-        # EXTRACT EMBEDDING
-        # ----------------------------------------------------
+        # ------------------------------
+        # 1️⃣  EXTRACT EMBEDDING
+        # ------------------------------
         if cmd == "extract-embedding":
             sample_urls = _input.get("sampleUrls") or []
             if not sample_urls:
-                return {
-                    "status": "error",
-                    "message": "No sampleUrls provided for embedding extraction.",
-                }
+                return {"status": "error", "message": "No sampleUrls provided."}
 
             sample_paths = [download_file(u) for u in sample_urls]
             embedding = extract_embedding(sample_paths)
 
-            return {
-                "status": "success",
-                "embedding": embedding,
-            }
+            return {"status": "success", "embedding": embedding}
 
-        # ----------------------------------------------------
-        # TTS GENERATION
-        # ----------------------------------------------------
+        # ------------------------------
+        # 2️⃣  TTS GENERATION
+        # ------------------------------
         if cmd == "tts":
             text = _input.get("text")
             embedding = _input.get("embedding")
@@ -207,28 +198,25 @@ def handler(event):
             if not text or not embedding:
                 return {
                     "status": "error",
-                    "message": "Both 'text' and 'embedding' are required.",
+                    "message": "'text' and 'embedding' are required.",
                 }
 
-            audio_array = xtts_generate_audio(text, embedding, language=language)
+            audio_array = xtts_generate_audio(text, embedding, language)
             mp3_path = save_mp3(audio_array)
 
             gcs_path = f"xtts_outputs/{os.path.basename(mp3_path)}"
-            audio_url = upload_to_gcs(mp3_path, gcs_path)
+            url = upload_to_gcs(mp3_path, gcs_path)
 
             return {
                 "status": "success",
-                "audioUrl": audio_url,
+                "audioUrl": url,
                 "audioBase64": encode_b64(mp3_path) if RETURN_AUDIO_BASE64 else None,
             }
 
-        # ----------------------------------------------------
+        # ------------------------------
         # UNKNOWN COMMAND
-        # ----------------------------------------------------
-        return {
-            "status": "error",
-            "message": f"Unknown command: {cmd}"
-        }
+        # ------------------------------
+        return {"status": "error", "message": f"Unknown command: {cmd}"}
 
     except Exception as e:
         print("❌ Exception in handler:", e)
@@ -241,10 +229,6 @@ def handler(event):
 
 
 # ============================================================
-#  START SERVERLESS LOOP (UNCHANGED)
-# ============================================================
-serverless.start({"handler": handler})
-
 #  START SERVERLESS LOOP
 # ============================================================
 serverless.start({"handler": handler})
