@@ -126,11 +126,18 @@ def extract_embedding(sample_paths):
     model = get_xtts_model()
     
     try:
-        spk_emb, gpt_latent = model.synthesizer.tts_model.get_conditioning_latents(
-            audio_path=sample_paths,
-            gpt_cond_len=6,
-            gpt_cond_chunk_len=4
-        )
+        # Try the direct synthesizer access (more reliable)
+        if hasattr(model, 'synthesizer') and hasattr(model.synthesizer, 'tts_model'):
+            print("📌 Using synthesizer.tts_model.get_conditioning_latents")
+            spk_emb, gpt_latent = model.synthesizer.tts_model.get_conditioning_latents(
+                audio_path=sample_paths,
+                gpt_cond_len=6,
+                gpt_cond_chunk_len=4
+            )
+        else:
+            # Fallback for different TTS versions
+            print("📌 Using model.get_conditioning_latents (fallback)")
+            spk_emb, gpt_latent = model.get_conditioning_latents(sample_paths)
         result = {
             "speaker_embedding": spk_emb.cpu().numpy().tolist(),
             "gpt_latent": gpt_latent.cpu().numpy().tolist(),
@@ -155,17 +162,30 @@ def xtts_generate_audio(text, embedding, language="en"):
     print(f"🎤 Running XTTS inference for: '{text[:50]}...'")
     
     try:
-        out = model.synthesizer.tts_model.inference(
-            text=text,
-            language=language,
-            gpt_cond_latent=latent,
-            speaker_embedding=speaker,
-            enable_text_splitting=True
-        )
-        audio = out["wav"]
+        # Try the direct synthesizer access (more reliable)
+        if hasattr(model, 'synthesizer') and hasattr(model.synthesizer, 'tts_model'):
+            print("🎤 Using synthesizer.tts_model.inference")
+            out = model.synthesizer.tts_model.inference(
+                text=text,
+                language=language,
+                gpt_cond_latent=latent,
+                speaker_embedding=speaker,
+                enable_text_splitting=True
+            )
+            audio = out["wav"]
+        else:
+            # Fallback for different TTS versions
+            print("🎤 Using model.tts_with_latents (fallback)")
+            audio = model.tts_with_latents(
+                text=text,
+                speaker_latents=(speaker, latent),
+                language=language,
+            )
         
         # Release tensors
-        del speaker, latent, out
+        del speaker, latent
+        if 'out' in dir():
+            del out
         clear_gpu_memory()
         
         return audio
